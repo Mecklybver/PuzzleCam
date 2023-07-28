@@ -150,7 +150,7 @@ function main() {
 
   function onMouseDown(e) {
     selected_piece = getPressedPiece(e);
-    if (selected_piece != null) {
+    if (selected_piece != null && selected_piece.selectable) {
       const index = pieces.indexOf(selected_piece);
       if (index > -1) {
         pieces.splice(index, 1);
@@ -165,27 +165,26 @@ function main() {
   }
 
   function onMouseMove(e) {
-    if (selected_piece != null) {
+    if (selected_piece != null && selected_piece.selectable) {
       selected_piece.x = e.x - selected_piece.offset.x;
       selected_piece.y = e.y - selected_piece.offset.y;
     }
   }
 
   function onMouseUp() {
-    if (selected_piece) {
-      if (selected_piece.isClose()) {
-        selected_piece.snap();
-        if (isComplete() && end_time === null) {
-          let now = new Date().getTime();
-          end_time = now;
+    if (selected_piece && selected_piece.isClose() && selected_piece.selectable) {
+      selected_piece.snap();
+      if (isComplete() && end_time === null) {
+        let now = new Date().getTime();
+        end_time = now;
 
-          setTimeout(() => {
-            playMelody();
-          }, 400);
-          showEndScreen();
-        }
+        setTimeout(() => {
+          playMelody();
+        }, 400);
+        showEndScreen();
       }
     }
+
     selected_piece = null;
   }
 
@@ -206,25 +205,25 @@ function main() {
   function handleResize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    let resizer =
-      scaler *
-      Math.min(
-        window.innerWidth / video.videoWidth,
-        window.innerHeight / video.videoHeight
-      );
+    let resizer = scaler * Math.min(window.innerWidth / video.videoWidth, window.innerHeight / video.videoHeight);
     size.width = resizer * video.videoWidth * 0.9;
     size.height = resizer * video.videoHeight * 0.9;
     size.x = window.innerWidth / 2 - size.width / 2;
     size.y = window.innerHeight / 2 - size.height / 2;
-
-    // Update the size of each piece
+  
+    // Update the size and position of each piece
     for (let i = 0; i < pieces.length; i++) {
       pieces[i].width = size.width / size.cols;
       pieces[i].height = size.height / size.rows;
+  
+      // Calculate the new position based on the scaled size
+      pieces[i].xCorrect = size.x + pieces[i].colIndex * pieces[i].width;
+      pieces[i].yCorrect = size.y + pieces[i].rowIndex * pieces[i].height;
     }
-
+  
     randomizePieces();
   }
+  
 
   function updateGame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -232,15 +231,19 @@ function main() {
     ctx.drawImage(video, size.x, size.y, size.width, size.height);
     ctx.globalAlpha = 1;
 
-    for (let y = 0; y < size.rows; y++) {
-      for (let x = 0; x < size.cols; x++) {
-        let pieceX = size.x + (size.width * x) / size.cols;
-        let pieceY = size.y + (size.height * y) / size.rows;
-        let pieceWidth = size.width / size.cols;
-        let pieceHeight = size.height / size.rows;
-        ctx.strokeRect(pieceX, pieceY, pieceWidth, pieceHeight);
-      }
+    for (let i = 0; i < pieces.length; i++) {
+      pieces[i].drawOriginal(ctx);
     }
+
+    // for (let y = 0; y < size.rows; y++) {
+    //   for (let x = 0; x < size.cols; x++) {
+    //     let pieceX = size.x + (size.width * x) / size.cols;
+    //     let pieceY = size.y + (size.height * y) / size.rows;
+    //     let pieceWidth = size.width / size.cols;
+    //     let pieceHeight = size.height / size.rows;
+    //     ctx.strokeRect(pieceX, pieceY, pieceWidth, pieceHeight);
+    //   }
+    // }
 
     for (let i = 0; i < pieces.length; i++) {
       pieces[i].draw(ctx);
@@ -256,6 +259,35 @@ function main() {
     for (let y = 0; y < size.rows; y++) {
       for (let x = 0; x < size.cols; x++) {
         pieces.push(new Piece(y, x));
+      }
+    }
+    let cnt = 0;
+    for (let y = 0; y < size.rows; y++) {
+      for (let x = 0; x < size.cols; x++) {
+        const piece = pieces[cnt];
+        if (y == size.rows - 1) {
+          piece.bottom = null;
+        } else {
+          const sgn = Math.random() < 0.5 ? -1 : 1;
+          piece.bottom = sgn * (Math.random() * 0.2 + 0.4);
+        }
+        if (x == size.cols - 1) {
+          piece.right = null;
+        } else {
+          const sgn = Math.random() < 0.5 ? -1 : 1;
+          piece.right = sgn * Math.random() * 0.2 + 0.4;
+        }
+        if (x == 0) {
+          piece.left = null;
+        } else {
+          piece.left = -pieces[cnt - 1].right;
+        }
+        if (y == 0) {
+          piece.top = null;
+        } else {
+          piece.top = -pieces[cnt - size.cols].bottom;
+        }
+        cnt++;
       }
     }
   }
@@ -283,23 +315,260 @@ function main() {
       this.xCorrect = this.x;
       this.yCorrect = this.y;
       this.correct = true;
+      this.selectable = true;
     }
+    
+  drawOriginal(ctx) {
+    ctx.beginPath();
 
-    draw(ctx) {
-      ctx.beginPath();
-      ctx.drawImage(
-        video,
-        this.colIndex * (video.videoWidth / size.cols),
-        this.rowIndex * (video.videoHeight / size.rows),
-        video.videoWidth / size.cols,
-        video.videoHeight / size.rows,
-        this.x,
-        this.y,
-        this.width,
-        this.height
+    const sz = Math.min(this.width, this.height);
+    const neck = 0.1 * sz;
+    const tabWidth = 0.2 * sz;
+    const tabHeight = 0.2 * sz;
+
+    ctx.moveTo(this.xCorrect, this.yCorrect);
+
+    // To top right
+    if (this.top) {
+      ctx.lineTo(this.xCorrect + this.width * Math.abs(this.top) - neck, this.yCorrect);
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width * Math.abs(this.top) - neck,
+        this.yCorrect - tabHeight * Math.sign(this.top) * 0.2,
+        this.xCorrect + this.width * Math.abs(this.top) - tabWidth,
+        this.yCorrect - tabHeight * Math.sign(this.top),
+        this.xCorrect + this.width * Math.abs(this.top),
+        this.yCorrect - tabHeight * Math.sign(this.top)
       );
 
-      ctx.rect(this.x, this.y, this.width, this.height);
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width * Math.abs(this.top) + tabWidth,
+        this.yCorrect - tabHeight * Math.sign(this.top),
+        this.xCorrect + this.width * Math.abs(this.top) + neck,
+        this.yCorrect - tabHeight * Math.sign(this.top) * 0.2,
+        this.xCorrect + this.width * Math.abs(this.top) + neck,
+        this.yCorrect
+      );
+    }
+    ctx.lineTo(this.xCorrect + this.width, this.yCorrect);
+
+    // To bottom right
+    if (this.right) {
+      ctx.lineTo(this.xCorrect + this.width, this.yCorrect + this.height * Math.abs(this.right) - neck);
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width - tabHeight * Math.sign(this.right) * 0.2,
+        this.yCorrect + this.height * Math.abs(this.right) - neck,
+        this.xCorrect + this.width - tabHeight * Math.sign(this.right),
+        this.yCorrect + this.height * Math.abs(this.right) - tabWidth,
+        this.xCorrect + this.width - tabHeight * Math.sign(this.right),
+        this.yCorrect + this.height * Math.abs(this.right)
+      );
+
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width - tabHeight * Math.sign(this.right),
+        this.yCorrect + this.height * Math.abs(this.right) + tabWidth,
+        this.xCorrect + this.width - tabHeight * Math.sign(this.right) * 0.2,
+        this.yCorrect + this.height * Math.abs(this.right) + neck,
+        this.xCorrect + this.width,
+        this.yCorrect + this.height * Math.abs(this.right) + neck
+      );
+    }
+    ctx.lineTo(this.xCorrect + this.width, this.yCorrect + this.height);
+
+    // To bottom left
+    if (this.bottom) {
+      ctx.lineTo(this.xCorrect + this.width * Math.abs(this.bottom) + neck, this.yCorrect + this.height);
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width * Math.abs(this.bottom) + neck,
+        this.yCorrect + this.height + tabHeight * Math.sign(this.bottom) * 0.2,
+        this.xCorrect + this.width * Math.abs(this.bottom) + tabWidth,
+        this.yCorrect + this.height + tabHeight * Math.sign(this.bottom),
+        this.xCorrect + this.width * Math.abs(this.bottom),
+        this.yCorrect + this.height + tabHeight * Math.sign(this.bottom)
+      );
+
+      ctx.bezierCurveTo(
+        this.xCorrect + this.width * Math.abs(this.bottom) - tabWidth,
+        this.yCorrect + this.height + tabHeight * Math.sign(this.bottom),
+        this.xCorrect + this.width * Math.abs(this.bottom) - neck,
+        this.yCorrect + this.height + tabHeight * Math.sign(this.bottom) * 0.2,
+        this.xCorrect + this.width * Math.abs(this.bottom) - neck,
+        this.yCorrect + this.height
+      );
+    }
+    ctx.lineTo(this.xCorrect, this.yCorrect + this.height);
+
+    // To top left
+    if (this.left) {
+      ctx.lineTo(this.xCorrect, this.yCorrect + this.height * Math.abs(this.left) + neck);
+      ctx.bezierCurveTo(
+        this.xCorrect + tabHeight * Math.sign(this.left) * 0.2,
+        this.yCorrect + this.height * Math.abs(this.left) + neck,
+        this.xCorrect + tabHeight * Math.sign(this.left),
+        this.yCorrect + this.height * Math.abs(this.left) + tabWidth,
+        this.xCorrect + tabHeight * Math.sign(this.left),
+        this.yCorrect + this.height * Math.abs(this.left)
+      );
+
+      ctx.bezierCurveTo(
+        this.xCorrect + tabHeight * Math.sign(this.left),
+        this.yCorrect + this.height * Math.abs(this.left) - tabWidth,
+        this.xCorrect + tabHeight * Math.sign(this.left) * 0.2,
+        this.yCorrect + this.height * Math.abs(this.left) - neck,
+        this.xCorrect,
+        this.yCorrect + this.height * Math.abs(this.left) - neck
+      );
+    }
+    ctx.lineTo(this.xCorrect, this.yCorrect);
+    ctx.stroke();
+  }
+
+    
+    draw(ctx) {
+      ctx.beginPath();
+
+      const sz = Math.min(this.width, this.height);
+      const neck = 0.1 * sz;
+      const tabWidth = 0.2 * sz;
+      const tabHeight = 0.2 * sz;
+
+      // ctx.rect(this.x, this.y, this.width, this.height);
+      ctx.moveTo(this.x, this.y);
+      //to top right
+      if (this.top) {
+        ctx.lineTo(this.x + this.width * Math.abs(this.top) - neck, this.y);
+        ctx.bezierCurveTo(
+          this.x + this.width * Math.abs(this.top) - neck,
+          this.y - tabHeight * Math.sign(this.top) * 0.2,
+
+          this.x + this.width * Math.abs(this.top) - tabWidth,
+          this.y - tabHeight * Math.sign(this.top),
+
+          this.x + this.width * Math.abs(this.top),
+          this.y - tabHeight * Math.sign(this.top)
+        );
+
+        ctx.bezierCurveTo(
+          this.x + this.width * Math.abs(this.top) + tabWidth,
+          this.y - tabHeight * Math.sign(this.top),
+
+          this.x + this.width * Math.abs(this.top) + neck,
+          this.y - tabHeight * Math.sign(this.top) * 0.2,
+
+          this.x + this.width * Math.abs(this.top) + neck,
+          this.y
+        );
+      }
+      ctx.lineTo(this.x + this.width, this.y);
+
+      //to bottom right
+      if (this.right) {
+        ctx.lineTo(
+          this.x + this.width,
+          this.y + this.height * Math.abs(this.right) - neck
+        );
+        ctx.bezierCurveTo(
+          this.x + this.width - tabHeight * Math.sign(this.right) * 0.2,
+          this.y + this.height * Math.abs(this.right) - neck,
+
+          this.x + this.width - tabHeight * Math.sign(this.right),
+          this.y + this.height * Math.abs(this.right) - tabWidth,
+
+          this.x + this.width - tabHeight * Math.sign(this.right),
+          this.y + this.height * Math.abs(this.right)
+        );
+        ctx.bezierCurveTo(
+          this.x + this.width - tabHeight * Math.sign(this.right),
+          this.y + this.height * Math.abs(this.right) + tabWidth,
+
+          this.x + this.width - tabHeight * Math.sign(this.right) * 0.2,
+          this.y + this.height * Math.abs(this.right) + neck,
+
+          this.x + this.width,
+          this.y + this.height * Math.abs(this.right) + neck
+        );
+      }
+      ctx.lineTo(this.x + this.width, this.y + this.height);
+
+      //to bottom left
+      if (this.bottom) {
+        ctx.lineTo(
+          this.x + this.width * Math.abs(this.bottom) + neck,
+          this.y + this.height
+        );
+
+        ctx.bezierCurveTo(
+          this.x + this.width * Math.abs(this.bottom) + neck,
+          this.y + this.height + tabHeight * Math.sign(this.bottom) * 0.2,
+
+          this.x + this.width * Math.abs(this.bottom) + tabWidth,
+          this.y + this.height + tabHeight * Math.sign(this.bottom),
+
+          this.x + this.width * Math.abs(this.bottom),
+          this.y + this.height + tabHeight * Math.sign(this.bottom)
+        );
+
+        ctx.bezierCurveTo(
+          this.x + this.width * Math.abs(this.bottom) - tabWidth,
+          this.y + this.height + tabHeight * Math.sign(this.bottom),
+
+          this.x + this.width * Math.abs(this.bottom) - neck,
+          this.y + this.height + tabHeight * Math.sign(this.bottom) * 0.2,
+
+          this.x + this.width * Math.abs(this.bottom) - neck,
+          this.y + this.height
+        );
+      }
+      ctx.lineTo(this.x, this.y + this.height);
+
+      //to top left
+      if (this.left) {
+        ctx.lineTo(this.x, this.y + this.height * Math.abs(this.left) + neck);
+
+        ctx.bezierCurveTo(
+          this.x + tabHeight * Math.sign(this.left) * 0.2,
+          this.y + this.height * Math.abs(this.left) + neck,
+
+          this.x + tabHeight * Math.sign(this.left),
+          this.y + this.height * Math.abs(this.left) + tabWidth,
+
+          this.x + tabHeight * Math.sign(this.left),
+          this.y + this.height * Math.abs(this.left)
+        );
+
+        ctx.bezierCurveTo(
+          this.x + tabHeight * Math.sign(this.left),
+          this.y + this.height * Math.abs(this.left) - tabWidth,
+
+          this.x + tabHeight * Math.sign(this.left) * 0.2,
+          this.y + this.height * Math.abs(this.left) - neck,
+
+          this.x,
+          this.y + this.height * Math.abs(this.left) - neck
+        );
+      }
+      ctx.lineTo(this.x, this.y);
+      ctx.save();
+
+      ctx.clip();
+
+      const scaledTabHeight =
+        (Math.min(video.videoWidth / size.cols, video.videoHeight / size.rows) *
+          tabHeight) /
+        sz;
+
+      ctx.drawImage(
+        video,
+        this.colIndex * (video.videoWidth / size.cols) - scaledTabHeight,
+        this.rowIndex * (video.videoHeight / size.rows) - scaledTabHeight,
+        video.videoWidth / size.cols + scaledTabHeight * 2,
+        video.videoHeight / size.rows + scaledTabHeight * 2,
+        this.x - tabWidth,
+        this.y - tabHeight,
+        this.width + tabWidth * 2,
+        this.height + tabHeight * 2
+      );
+
+      ctx.restore();
       ctx.stroke();
     }
 
@@ -320,6 +589,7 @@ function main() {
       this.x = this.xCorrect;
       this.y = this.yCorrect;
       this.correct = true;
+      this.selectable = false;
       pop.play();
     }
   }
