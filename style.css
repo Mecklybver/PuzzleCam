@@ -1,0 +1,82 @@
+*{
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+body{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family:Arial;
+    background-color: blue;
+
+}
+canvas{
+    background-color: blue;
+    
+}
+.menu{
+	 width:80vmin;
+	 position:absolute;
+	 top:50%;
+	 left:50%;
+	 transform:translate(-50%,-50%);
+	 background:rgba(255,255,255,0.6);
+	 text-align:center;
+	 padding:5vmin;
+	 border:1vmin rgba(0,0,0,0.6) solid;
+	 font-size:7vmin;
+ }
+ 
+ button{
+	 font-size:7vmin;
+	 background:rgb(123,146,196);
+	 color:white;
+	 cursor:pointer;
+	 transition:0.3s;
+	 border:none;
+	 border-radius:1vmin;
+ }
+ button:hover{
+	 background:orange;
+	 color:black;
+ }
+ 
+ button:disabled{
+	 background:lightgray;
+	 color:gray;
+	 cursor:default;
+ }
+ 
+ select{
+	 font-size:7vmin;
+	 cursor:pointer;
+	 border:none;
+	 border-radius:1vmin;
+	 outline:none;
+ }
+ 
+ #time{
+    position:absolute;
+    top:0;
+    left:50%;
+    transform:translate(-50%);
+    font-size:6vmin;
+    font-weight: 700;
+    background-color: aquamarine;
+}
+ 
+ #scoresContainer{
+	 height:43vh;
+	 overflow:auto;
+ }
+ 
+ input{
+	 font-size:7vmin;
+	 border-radius:1vmin;
+	 width:50%;
+	 text-align:center;
+ }
