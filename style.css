@@ -18,6 +18,9 @@ canvas{
     background-color: blue;
     
 }
+#canvas2{
+	display:none;
+}
 .menu{
 	 width:80vmin;
 	 position:absolute;

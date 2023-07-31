@@ -1,6 +1,8 @@
 let video = null;
 let canvas = null;
+let canvas2 = null;
 let ctx = null;
+let ctx2 = null;
 let scaler = 0.95;
 let pieces = [];
 let size = { x: 0, y: 0, width: 0, height: 0, rows: 3, cols: 3 };
@@ -30,9 +32,11 @@ let keys = {
 };
 
 function main() {
-  canvas = document.querySelector("canvas");
-
+  canvas = document.getElementById("canvas1");
   ctx = canvas.getContext("2d");
+  addEventListeners();
+  canvas2 = document.getElementById("canvas2");
+  ctx2 = canvas2.getContext("2d");
   addEventListeners();
 
   let promise = navigator.mediaDevices.getUserMedia({ video: true });
@@ -149,7 +153,19 @@ function main() {
   }
 
   function onMouseDown(e) {
-    selected_piece = getPressedPiece(e);
+    const imgData = ctx2.getImageData(e.x,e.y,1,1)
+    if ( imgData.data[3] == 0){
+      return;
+    }
+    const clickedColor =
+    "rgb(" +
+    imgData.data[0] + "," +
+    imgData.data[1] + "," +
+    imgData.data[2] + ")";
+
+    selected_piece = getPressedPieceColor(e, clickedColor);
+
+    // selected_piece = getPressedPiece(e);
     if (selected_piece != null && selected_piece.selectable) {
       const index = pieces.indexOf(selected_piece);
       if (index > -1) {
@@ -202,9 +218,21 @@ function main() {
     return null;
   }
 
+  function getPressedPieceColor(loc, color) {
+    for (let i = pieces.length - 1; i >= 0; i--) {
+      if (pieces[i].color === color) {
+        return pieces[i];
+      }
+    }
+    return null;
+  }
+  
+
   function handleResize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    canvas2.width = window.innerWidth;
+    canvas2.height = window.innerHeight;
     let resizer = scaler * Math.min(window.innerWidth / video.videoWidth, window.innerHeight / video.videoHeight);
     size.width = resizer * video.videoWidth * 0.9;
     size.height = resizer * video.videoHeight * 0.9;
@@ -227,6 +255,7 @@ function main() {
 
   function updateGame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx2.clearRect(0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = 0.5;
     ctx.drawImage(video, size.x, size.y, size.width, size.height);
     ctx.globalAlpha = 1;
@@ -247,18 +276,31 @@ function main() {
 
     for (let i = 0; i < pieces.length; i++) {
       pieces[i].draw(ctx);
+      pieces[i].draw(ctx2, false);
     }
     updateTime();
     window.requestAnimationFrame(updateGame);
+  }
+
+  function getRandomColor(){
+    const red = Math.floor(Math.random() * 255); 
+    const blue = Math.floor(Math.random() * 255); 
+    const green = Math.floor(Math.random() * 255); 
+    return "rgb(" + red + "," + blue +"," + green + ")";
   }
 
   function initializePieces(rows, cols) {
     size.rows = rows;
     size.cols = cols;
     pieces = [];
+    const uniqueRandomColor = [];
     for (let y = 0; y < size.rows; y++) {
       for (let x = 0; x < size.cols; x++) {
-        pieces.push(new Piece(y, x));
+        let color = getRandomColor();
+        while(uniqueRandomColor.includes(color)){
+          color = getRandomColor();
+        }
+        pieces.push(new Piece(y, x, color));
       }
     }
     let cnt = 0;
@@ -305,9 +347,10 @@ function main() {
   }
 
   class Piece {
-    constructor(rowIndex, colIndex) {
+    constructor(rowIndex, colIndex, color) {
       this.rowIndex = rowIndex;
       this.colIndex = colIndex;
+      this.color = color;
       this.x = size.x + (size.width * this.colIndex) / size.cols;
       this.y = size.y + (size.height * this.rowIndex) / size.rows;
       this.width = size.width / size.cols;
@@ -423,7 +466,7 @@ function main() {
   }
 
     
-    draw(ctx) {
+    draw(ctx, useCam = true) {
       ctx.beginPath();
 
       const sz = Math.min(this.width, this.height);
@@ -555,7 +598,7 @@ function main() {
         (Math.min(video.videoWidth / size.cols, video.videoHeight / size.rows) *
           tabHeight) /
         sz;
-
+      if(useCam){
       ctx.drawImage(
         video,
         this.colIndex * (video.videoWidth / size.cols) - scaledTabHeight,
@@ -567,6 +610,13 @@ function main() {
         this.width + tabWidth * 2,
         this.height + tabHeight * 2
       );
+    } else {
+      ctx.fillStyle = this.color;
+      ctx.fillRect(this.x-tabHeight,
+         this.y-tabHeight,
+          this.width + tabHeight*2,
+           this.height + tabHeight*2);
+    }
 
       ctx.restore();
       ctx.stroke();
